@@ -170,6 +170,16 @@ button, input {
     line-height: 1;
     letter-spacing: -0.03em;
     font-variant-numeric: tabular-nums;
+    text-align: center;
+    outline: none;
+    caret-color: var(--blue);
+    user-select: text;
+    -webkit-user-select: text;
+    border-radius: 0;
+}
+
+.distance-value:focus {
+    color: var(--blue);
 }
 
 .selected-card {
@@ -306,8 +316,7 @@ button, input {
 }
 
 .backdrop.hidden,
-.drawer:not(.open),
-.numpad.hidden {
+.drawer:not(.open) {
     pointer-events: none;
 }
 
@@ -475,63 +484,6 @@ button, input {
     border-color: var(--blue);
 }
 
-.numpad {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 40;
-    background: #0d0d0d;
-    border-top: 1px solid #222;
-    padding: 16px 16px calc(16px + var(--safe-bottom));
-    border-radius: 22px 22px 0 0;
-}
-
-.numpad-label {
-    text-align: center;
-    color: var(--grey);
-    font-size: 11px;
-    font-weight: 700;
-}
-
-.numpad-value {
-    text-align: center;
-    font-size: 48px;
-    font-weight: 800;
-    color: var(--blue);
-    margin: 4px 0 14px;
-    font-variant-numeric: tabular-nums;
-}
-
-.numpad-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-}
-
-.numpad-grid button {
-    height: 56px;
-    border: 0;
-    border-radius: 14px;
-    background: var(--charcoal);
-    color: var(--white);
-    font-size: 22px;
-    font-weight: 800;
-}
-
-.numpad-grid button:active {
-    background: #242424;
-}
-
-.numpad-ok {
-    background: var(--blue) !important;
-    color: #001018 !important;
-}
-
-.numpad-muted {
-    color: var(--grey) !important;
-}
-
 @media (orientation: landscape) and (max-height: 520px) {
     .distance-value {
         font-size: 48px;
@@ -556,14 +508,5 @@ button, input {
 
     .slider-block {
         margin-top: 10px;
-    }
-
-    .numpad-grid button {
-        height: 42px;
-    }
-
-    .numpad-value {
-        font-size: 32px;
-        margin: 0 0 8px;
     }
 }

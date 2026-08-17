@@ -4,11 +4,11 @@ Aplicación Android privada y 100% offline: introduces una distancia y la app re
 
 **Nombre visible:** Gazza Club Caddie  
 **Package:** `com.gazza.clubcaddie`  
-**APK:** `apk/GazzaClubCaddie-1.0.apk`
+**APK:** `apk/GazzaClubCaddie-1.0.1.apk`
 
 ## Instalar en el teléfono
 
-1. Copia `apk/GazzaClubCaddie-1.0.apk` al teléfono.
+1. Copia `apk/GazzaClubCaddie-1.0.1.apk` al teléfono.
 2. Abre el archivo e instálalo (permite “orígenes desconocidos” si Android lo pide).
 3. No necesita Internet, cuenta ni GPS.
 

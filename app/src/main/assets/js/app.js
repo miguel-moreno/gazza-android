@@ -163,16 +163,13 @@
     var clubs = loadClubs();
     var distance = 96;
     var drawerOpen = false;
-    var numpadOpen = false;
-    var numpadBuffer = "";
-    var numpadFresh = true;
 
     var els = {
         btnMenu: document.getElementById("btnMenu"),
         btnMore: document.getElementById("btnMore"),
         screenMain: document.getElementById("screenMain"),
         screenSettings: document.getElementById("screenSettings"),
-        btnDistance: document.getElementById("btnDistance"),
+        distanceInput: document.getElementById("distanceInput"),
         selectedName: document.getElementById("selectedName"),
         selectedRange: document.getElementById("selectedRange"),
         prevCard: document.getElementById("prevCard"),
@@ -187,10 +184,7 @@
         navClubSelection: document.getElementById("navClubSelection"),
         navSettings: document.getElementById("navSettings"),
         settingsList: document.getElementById("settingsList"),
-        btnSettingsBack: document.getElementById("btnSettingsBack"),
-        numpad: document.getElementById("numpad"),
-        numpadBackdrop: document.getElementById("numpadBackdrop"),
-        numpadValue: document.getElementById("numpadValue")
+        btnSettingsBack: document.getElementById("btnSettingsBack")
     };
 
     function clampDistance(value) {
@@ -201,13 +195,28 @@
         return Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, n));
     }
 
+    function isDistanceEditing() {
+        return document.activeElement === els.distanceInput;
+    }
+
+    function hideDistanceKeyboard() {
+        if (!isDistanceEditing()) {
+            return false;
+        }
+        els.distanceInput.blur();
+        commitDistanceInput();
+        return true;
+    }
+
     function renderMain() {
         var index = selectClubIndex(distance, clubs);
         var selected = clubs[index];
         var prev = index > 0 ? clubs[index - 1] : null;
         var next = index < clubs.length - 1 ? clubs[index + 1] : null;
 
-        els.btnDistance.textContent = String(distance);
+        if (!isDistanceEditing()) {
+            els.distanceInput.value = String(distance);
+        }
         els.distanceSlider.value = String(distance);
         els.selectedName.textContent = selected.name;
         els.selectedRange.textContent = formatRange(selected);
@@ -241,6 +250,16 @@
         renderMain();
     }
 
+    function commitDistanceInput() {
+        var raw = String(els.distanceInput.value || "").replace(/\D/g, "");
+        if (raw === "") {
+            els.distanceInput.value = String(distance);
+            return;
+        }
+        setDistance(raw, false);
+        els.distanceInput.value = String(distance);
+    }
+
     function closeDrawer() {
         drawerOpen = false;
         els.drawer.classList.remove("open");
@@ -249,6 +268,7 @@
     }
 
     function openDrawer() {
+        hideDistanceKeyboard();
         drawerOpen = true;
         els.drawer.classList.add("open");
         els.drawer.setAttribute("aria-hidden", "false");
@@ -295,12 +315,12 @@
             minInput.addEventListener("change", commit);
             maxInput.addEventListener("change", commit);
             minInput.addEventListener("blur", commit);
-            maxInput.addEventListener("blur", commit);
             els.settingsList.appendChild(card);
         });
     }
 
     function showSettings() {
+        hideDistanceKeyboard();
         els.screenMain.classList.add("hidden");
         els.screenSettings.classList.remove("hidden");
         els.screenSettings.setAttribute("aria-hidden", "false");
@@ -308,62 +328,8 @@
         renderSettings();
     }
 
-    function updateNumpadDisplay() {
-        els.numpadValue.textContent = numpadBuffer === "" ? "—" : numpadBuffer;
-    }
-
-    function openNumpad() {
-        numpadOpen = true;
-        numpadBuffer = String(distance);
-        numpadFresh = true;
-        els.numpad.classList.remove("hidden");
-        els.numpad.setAttribute("aria-hidden", "false");
-        els.numpadBackdrop.classList.remove("hidden");
-        updateNumpadDisplay();
-    }
-
-    function closeNumpad() {
-        numpadOpen = false;
-        els.numpad.classList.add("hidden");
-        els.numpad.setAttribute("aria-hidden", "true");
-        els.numpadBackdrop.classList.add("hidden");
-    }
-
-    function confirmNumpad() {
-        if (numpadBuffer !== "") {
-            setDistance(numpadBuffer, false);
-        }
-        closeNumpad();
-    }
-
-    function handleNumpadKey(key) {
-        if (key === "ok") {
-            confirmNumpad();
-            return;
-        }
-        if (key === "del") {
-            numpadFresh = false;
-            numpadBuffer = numpadBuffer.slice(0, -1);
-            updateNumpadDisplay();
-            return;
-        }
-        if (numpadFresh) {
-            numpadBuffer = key;
-            numpadFresh = false;
-        } else if (numpadBuffer.length < 3) {
-            numpadBuffer += key;
-        }
-        updateNumpadDisplay();
-        var live = parseInt(numpadBuffer, 10);
-        if (!isNaN(live) && live >= MIN_DISTANCE && live <= MAX_DISTANCE) {
-            els.distanceSlider.value = String(live);
-            els.btnDistance.textContent = String(live);
-        }
-    }
-
     window.gazzaOnBack = function () {
-        if (numpadOpen) {
-            closeNumpad();
+        if (hideDistanceKeyboard()) {
             return true;
         }
         if (drawerOpen) {
@@ -375,6 +341,11 @@
             return true;
         }
         return false;
+    };
+
+    window.gazzaHideKeyboard = function () {
+        hideDistanceKeyboard();
+        return true;
     };
 
     els.btnMenu.addEventListener("click", function () {
@@ -395,18 +366,37 @@
     els.navClubSelection.addEventListener("click", showMain);
     els.navSettings.addEventListener("click", showSettings);
     els.btnSettingsBack.addEventListener("click", showMain);
-    els.btnDistance.addEventListener("click", openNumpad);
-    els.numpadBackdrop.addEventListener("click", confirmNumpad);
+
+    els.distanceInput.addEventListener("input", function () {
+        var raw = String(els.distanceInput.value || "").replace(/\D/g, "");
+        if (raw !== els.distanceInput.value) {
+            els.distanceInput.value = raw;
+        }
+        var live = parseInt(raw, 10);
+        if (!isNaN(live) && live >= MIN_DISTANCE && live <= MAX_DISTANCE) {
+            distance = live;
+            els.distanceSlider.value = String(live);
+            renderMain();
+        }
+    });
+
+    els.distanceInput.addEventListener("blur", commitDistanceInput);
+
+    els.distanceInput.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            hideDistanceKeyboard();
+        }
+    });
+
+    els.screenMain.addEventListener("pointerdown", function (event) {
+        if (event.target !== els.distanceInput) {
+            hideDistanceKeyboard();
+        }
+    });
 
     els.distanceSlider.addEventListener("input", function (event) {
         setDistance(event.target.value, true);
-    });
-
-    els.numpad.addEventListener("click", function (event) {
-        var key = event.target.getAttribute("data-key");
-        if (key) {
-            handleNumpadKey(key);
-        }
     });
 
     saveClubs(clubs);
