@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>Gazza Club Caddie</title>
+    <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+    <div id="app">
+        <header class="topbar">
+            <button type="button" class="icon-btn" id="btnMenu" aria-label="Menu">
+                <span class="hamburger">
+                    <i></i><i></i><i></i>
+                </span>
+            </button>
+            <h1 class="app-title">GAZZA CLUB CADDIE</h1>
+            <button type="button" class="icon-btn" id="btnMore" aria-label="More">
+                <span class="dots">
+                    <i></i><i></i><i></i>
+                </span>
+            </button>
+        </header>
+
+        <main id="screenMain" class="screen screen-main">
+            <section class="distance-block">
+                <div class="distance-kicker">DISTANCE TO TARGET</div>
+                <div class="distance-unit">METRES</div>
+                <button type="button" id="btnDistance" class="distance-value" aria-label="Edit distance">96</button>
+            </section>
+
+            <section class="selected-card" id="selectedCard">
+                <div class="selected-kicker">CLUB SELECTED</div>
+                <div class="selected-name" id="selectedName">PW</div>
+                <div class="selected-range" id="selectedRange">90–100 m</div>
+            </section>
+
+            <section class="adj-row">
+                <div class="adj-card" id="prevCard">
+                    <div class="adj-kicker">PREV.</div>
+                    <div class="adj-name" id="prevName">9 IRON</div>
+                    <div class="adj-range" id="prevRange">100–105 m</div>
+                </div>
+                <div class="adj-card" id="nextCard">
+                    <div class="adj-kicker">NEXT</div>
+                    <div class="adj-name" id="nextName">52°</div>
+                    <div class="adj-range" id="nextRange">85–95 m</div>
+                </div>
+            </section>
+
+            <section class="slider-block">
+                <div class="slider-labels">
+                    <span>40 m</span>
+                    <span>220 m</span>
+                </div>
+                <input
+                    id="distanceSlider"
+                    class="distance-slider"
+                    type="range"
+                    min="40"
+                    max="220"
+                    step="1"
+                    value="96"
+                    aria-label="Distance to target"
+                />
+            </section>
+        </main>
+
+        <main id="screenSettings" class="screen screen-settings hidden" aria-hidden="true">
+            <div class="settings-header">
+                <button type="button" class="text-back" id="btnSettingsBack">← BACK</button>
+                <h2>SETTINGS</h2>
+            </div>
+            <p class="settings-hint">Set your personal min / max distance for each club. Values are stored on this phone only.</p>
+            <div id="settingsList" class="settings-list"></div>
+        </main>
+    </div>
+
+    <div id="drawerBackdrop" class="backdrop hidden"></div>
+    <aside id="drawer" class="drawer" aria-hidden="true">
+        <div class="drawer-brand">GAZZA CLUB CADDIE</div>
+        <nav class="drawer-nav">
+            <button type="button" class="drawer-item" id="navClubSelection">
+                <span class="drawer-emoji">🏌️</span>
+                <span>Club Selection</span>
+            </button>
+            <button type="button" class="drawer-item" id="navSettings">
+                <span class="drawer-emoji">⚙️</span>
+                <span>Settings</span>
+            </button>
+        </nav>
+        <div class="drawer-footer">V1.0</div>
+    </aside>
+
+    <div id="numpadBackdrop" class="backdrop hidden"></div>
+    <div id="numpad" class="numpad hidden" aria-hidden="true">
+        <div class="numpad-label">DISTANCE (m)</div>
+        <div class="numpad-value" id="numpadValue">96</div>
+        <div class="numpad-grid">
+            <button type="button" data-key="1">1</button>
+            <button type="button" data-key="2">2</button>
+            <button type="button" data-key="3">3</button>
+            <button type="button" data-key="4">4</button>
+            <button type="button" data-key="5">5</button>
+            <button type="button" data-key="6">6</button>
+            <button type="button" data-key="7">7</button>
+            <button type="button" data-key="8">8</button>
+            <button type="button" data-key="9">9</button>
+            <button type="button" data-key="del" class="numpad-muted">⌫</button>
+            <button type="button" data-key="0">0</button>
+            <button type="button" data-key="ok" class="numpad-ok">OK</button>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
