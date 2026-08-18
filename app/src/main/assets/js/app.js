@@ -258,7 +258,7 @@
 
     function saveAnchors(anchors) {
         var json = JSON.stringify({
-            version: 3,
+            version: 4,
             driver: anchors.driver,
             iron7: anchors.iron7
         });
@@ -312,7 +312,8 @@
         navClubSelection: document.getElementById("navClubSelection"),
         navSettings: document.getElementById("navSettings"),
         settingsList: document.getElementById("settingsList"),
-        btnSettingsBack: document.getElementById("btnSettingsBack")
+        btnSettingsBack: document.getElementById("btnSettingsBack"),
+        btnSettingsSave: document.getElementById("btnSettingsSave")
     };
 
     function clampDistance(value) {
@@ -412,22 +413,20 @@
         renderMain();
     }
 
-    function applyAnchors(nextDriver, nextIron7) {
-        anchors = {
-            driver: parseAnchorValue(nextDriver, anchors.driver),
-            iron7: parseAnchorValue(nextIron7, anchors.iron7)
+    function readSettingsDraft() {
+        var driverInput = els.settingsList.querySelector('input[data-anchor="driver"]');
+        var iron7Input = els.settingsList.querySelector('input[data-anchor="iron7"]');
+        return {
+            driver: parseAnchorValue(driverInput && driverInput.value, anchors.driver),
+            iron7: parseAnchorValue(iron7Input && iron7Input.value, anchors.iron7)
         };
-        clubs = clubsFromAnchors(anchors.driver, anchors.iron7);
-        saveAnchors(anchors);
-        renderMain();
-        refreshSettingsValues();
     }
 
-    function refreshSettingsValues() {
+    function refreshSettingsValues(previewClubs) {
         if (!els.settingsList) {
             return;
         }
-        clubs.forEach(function (club) {
+        (previewClubs || clubs).forEach(function (club) {
             var card = els.settingsList.querySelector('[data-club-id="' + club.id + '"]');
             if (!card) {
                 return;
@@ -445,6 +444,20 @@
                 input.value = String(club.distance);
             }
         });
+    }
+
+    function previewSettingsDraft() {
+        var draft = readSettingsDraft();
+        refreshSettingsValues(clubsFromAnchors(draft.driver, draft.iron7));
+    }
+
+    function saveSettingsAndBack() {
+        var draft = readSettingsDraft();
+        hideDistanceKeyboard();
+        anchors = draft;
+        clubs = clubsFromAnchors(anchors.driver, anchors.iron7);
+        saveAnchors(anchors);
+        showMain();
     }
 
     function renderSettings() {
@@ -477,18 +490,14 @@
                 input.setAttribute("data-anchor", anchorKey);
                 input.value = String(club.distance);
 
-                function commitAnchor() {
+                function normalizeInput() {
                     var raw = String(input.value || "").replace(/\D/g, "");
+                    if (raw !== input.value) {
+                        input.value = raw;
+                    }
                     if (raw === "") {
                         input.value = String(anchors[anchorKey]);
-                        return;
                     }
-                    if (anchorKey === "driver") {
-                        applyAnchors(raw, anchors.iron7);
-                    } else {
-                        applyAnchors(anchors.driver, raw);
-                    }
-                    input.value = String(anchors[anchorKey]);
                 }
 
                 input.addEventListener("input", function () {
@@ -497,16 +506,24 @@
                         input.value = raw;
                     }
                     var live = parseInt(raw, 10);
-                    if (!isNaN(live) && live >= 40 && live <= 400) {
-                        if (anchorKey === "driver") {
-                            applyAnchors(live, anchors.iron7);
-                        } else {
-                            applyAnchors(anchors.driver, live);
-                        }
+                    if (!isNaN(live) && live >= 1 && live <= 400) {
+                        previewSettingsDraft();
                     }
                 });
-                input.addEventListener("change", commitAnchor);
-                input.addEventListener("blur", commitAnchor);
+                input.addEventListener("change", function () {
+                    normalizeInput();
+                    previewSettingsDraft();
+                });
+                input.addEventListener("blur", function () {
+                    normalizeInput();
+                    previewSettingsDraft();
+                });
+                input.addEventListener("keydown", function (event) {
+                    if (event.key === "Enter") {
+                        event.preventDefault();
+                        saveSettingsAndBack();
+                    }
+                });
             } else {
                 card.querySelector(".settings-computed").textContent = club.distance + " m";
             }
@@ -562,6 +579,7 @@
     els.navClubSelection.addEventListener("click", showMain);
     els.navSettings.addEventListener("click", showSettings);
     els.btnSettingsBack.addEventListener("click", showMain);
+    els.btnSettingsSave.addEventListener("click", saveSettingsAndBack);
 
     els.distanceInput.addEventListener("input", function () {
         var raw = String(els.distanceInput.value || "").replace(/\D/g, "");

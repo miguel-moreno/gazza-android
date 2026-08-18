@@ -19,8 +19,8 @@ android {
         applicationId = "com.gazza.clubcaddie"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "3.0.0"
+        versionCode = 5
+        versionName = "4.0.0"
     }
 
     signingConfigs {
