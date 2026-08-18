@@ -3,32 +3,54 @@
 
     var MIN_DISTANCE = 40;
     var MAX_DISTANCE = 220;
+    var RANGE_PAD = 5;
+    var CLUB_VALUE_MIN = 1;
+    var CLUB_VALUE_MAX = 400;
     var STORAGE_KEY = "gazza_clubs_v1";
 
     var DEFAULT_CLUBS = [
-        { id: "driver", name: "DRIVER", min: 195, max: 200 },
-        { id: "3w", name: "3W", min: 175, max: 185 },
-        { id: "3h", name: "3H 19°", min: 165, max: 175 },
-        { id: "4h", name: "4H 22°", min: 155, max: 160 },
-        { id: "5i", name: "5 IRON", min: 140, max: 148 },
-        { id: "6i", name: "6 IRON", min: 132, max: 140 },
-        { id: "7i", name: "7 IRON", min: 110, max: 122 },
-        { id: "8i", name: "8 IRON", min: 105, max: 112 },
-        { id: "9i", name: "9 IRON", min: 100, max: 105 },
-        { id: "pw", name: "PW", min: 90, max: 100 },
-        { id: "52", name: "52°", min: 85, max: 95 },
-        { id: "56", name: "56°", min: 75, max: 85 },
-        { id: "60", name: "60°", min: 60, max: 70 }
-    ];
+        { id: "driver", name: "DRIVER", distance: 200 },
+        { id: "3w", name: "3W", distance: 185 },
+        { id: "3h", name: "3H 19°", distance: 175 },
+        { id: "4h", name: "4H 22°", distance: 160 },
+        { id: "5i", name: "5 IRON", distance: 148 },
+        { id: "6i", name: "6 IRON", distance: 140 },
+        { id: "7i", name: "7 IRON", distance: 122 },
+        { id: "8i", name: "8 IRON", distance: 112 },
+        { id: "9i", name: "9 IRON", distance: 105 },
+        { id: "pw", name: "PW", distance: 100 },
+        { id: "52", name: "52°", distance: 95 },
+        { id: "56", name: "56°", distance: 85 },
+        { id: "60", name: "60°", distance: 70 }
+    ].map(clubFromDistance);
+
+    function clampClubValue(value) {
+        return Math.max(CLUB_VALUE_MIN, Math.min(CLUB_VALUE_MAX, value));
+    }
+
+    function rangeFromDistance(distance) {
+        var value = clampClubValue(parseInt(distance, 10) || CLUB_VALUE_MIN);
+        return {
+            distance: value,
+            min: clampClubValue(value - RANGE_PAD),
+            max: clampClubValue(value + RANGE_PAD)
+        };
+    }
+
+    function clubFromDistance(club) {
+        var range = rangeFromDistance(club.distance);
+        return {
+            id: club.id,
+            name: club.name,
+            distance: range.distance,
+            min: range.min,
+            max: range.max
+        };
+    }
 
     function cloneClubs(list) {
         return list.map(function (club) {
-            return {
-                id: club.id,
-                name: club.name,
-                min: Number(club.min),
-                max: Number(club.max)
-            };
+            return clubFromDistance(club);
         });
     }
 
@@ -37,6 +59,13 @@
             return "—";
         }
         return club.min + "–" + club.max + " m";
+    }
+
+    function clubTypicalDistance(club) {
+        if (club && club.distance != null && !isNaN(Number(club.distance))) {
+            return Number(club.distance);
+        }
+        return (Number(club.min) + Number(club.max)) / 2;
     }
 
     function selectClubIndex(distance, clubs) {
@@ -68,28 +97,57 @@
         return bestIndex;
     }
 
-    function sanitizeClub(club, fallback) {
-        var min = parseInt(club && club.min, 10);
+    function adjacentClubs(selectedIndex, clubs) {
+        var selected = clubs[selectedIndex];
+        var selectedDist = clubTypicalDistance(selected);
+        var prev = null;
+        var next = null;
+        var prevDist = -Infinity;
+        var nextDist = Infinity;
+        var i;
+        var club;
+        var dist;
+
+        for (i = 0; i < clubs.length; i += 1) {
+            if (i === selectedIndex) {
+                continue;
+            }
+            club = clubs[i];
+            dist = clubTypicalDistance(club);
+            if (dist < selectedDist && dist > prevDist) {
+                prev = club;
+                prevDist = dist;
+            } else if (dist > selectedDist && dist < nextDist) {
+                next = club;
+                nextDist = dist;
+            }
+        }
+
+        return { prev: prev, next: next };
+    }
+
+    function readTypicalDistance(club, fallbackDistance) {
+        var distance = parseInt(club && club.distance, 10);
+        if (!isNaN(distance)) {
+            return distance;
+        }
         var max = parseInt(club && club.max, 10);
-        if (isNaN(min)) {
-            min = fallback.min;
+        if (!isNaN(max)) {
+            return max;
         }
-        if (isNaN(max)) {
-            max = fallback.max;
+        var min = parseInt(club && club.min, 10);
+        if (!isNaN(min)) {
+            return min;
         }
-        min = Math.max(1, Math.min(400, min));
-        max = Math.max(1, Math.min(400, max));
-        if (min > max) {
-            var swap = min;
-            min = max;
-            max = swap;
-        }
-        return {
+        return fallbackDistance;
+    }
+
+    function sanitizeClub(club, fallback) {
+        return clubFromDistance({
             id: fallback.id,
             name: fallback.name,
-            min: min,
-            max: max
-        };
+            distance: readTypicalDistance(club, fallback.distance)
+        });
     }
 
     function mergeSavedClubs(saved) {
@@ -153,9 +211,13 @@
     if (typeof module !== "undefined" && module.exports) {
         module.exports = {
             DEFAULT_CLUBS: DEFAULT_CLUBS,
+            RANGE_PAD: RANGE_PAD,
             selectClubIndex: selectClubIndex,
+            adjacentClubs: adjacentClubs,
             formatRange: formatRange,
-            mergeSavedClubs: mergeSavedClubs
+            rangeFromDistance: rangeFromDistance,
+            mergeSavedClubs: mergeSavedClubs,
+            sanitizeClub: sanitizeClub
         };
         return;
     }
@@ -208,11 +270,22 @@
         return true;
     }
 
+    function fillAdjCard(card, nameEl, rangeEl, club) {
+        if (club) {
+            card.classList.remove("is-empty");
+            nameEl.textContent = club.name;
+            rangeEl.textContent = formatRange(club);
+        } else {
+            card.classList.add("is-empty");
+            nameEl.textContent = "—";
+            rangeEl.textContent = "—";
+        }
+    }
+
     function renderMain() {
         var index = selectClubIndex(distance, clubs);
         var selected = clubs[index];
-        var prev = index > 0 ? clubs[index - 1] : null;
-        var next = index < clubs.length - 1 ? clubs[index + 1] : null;
+        var neighbors = adjacentClubs(index, clubs);
 
         if (!isDistanceEditing()) {
             els.distanceInput.value = String(distance);
@@ -221,25 +294,8 @@
         els.selectedName.textContent = selected.name;
         els.selectedRange.textContent = formatRange(selected);
 
-        if (prev) {
-            els.prevCard.classList.remove("is-empty");
-            els.prevName.textContent = prev.name;
-            els.prevRange.textContent = formatRange(prev);
-        } else {
-            els.prevCard.classList.add("is-empty");
-            els.prevName.textContent = "—";
-            els.prevRange.textContent = "—";
-        }
-
-        if (next) {
-            els.nextCard.classList.remove("is-empty");
-            els.nextName.textContent = next.name;
-            els.nextRange.textContent = formatRange(next);
-        } else {
-            els.nextCard.classList.add("is-empty");
-            els.nextName.textContent = "—";
-            els.nextRange.textContent = "—";
-        }
+        fillAdjCard(els.prevCard, els.prevName, els.prevRange, neighbors.prev);
+        fillAdjCard(els.nextCard, els.nextName, els.nextRange, neighbors.next);
     }
 
     function setDistance(value, fromSlider) {
@@ -291,30 +347,26 @@
             card.innerHTML =
                 '<div class="settings-club"></div>' +
                 '<div class="settings-fields">' +
-                '<label>MIN<input type="number" inputmode="numeric" min="1" max="400" data-field="min"></label>' +
-                '<label>MAX<input type="number" inputmode="numeric" min="1" max="400" data-field="max"></label>' +
-                "</div>";
+                '<label>METRES<input type="number" inputmode="numeric" min="1" max="400" data-field="distance"></label>' +
+                "</div>" +
+                '<div class="settings-range"></div>';
             card.querySelector(".settings-club").textContent = club.name;
-            var minInput = card.querySelector('input[data-field="min"]');
-            var maxInput = card.querySelector('input[data-field="max"]');
-            minInput.value = club.min;
-            maxInput.value = club.max;
+            var distanceInput = card.querySelector('input[data-field="distance"]');
+            var rangeEl = card.querySelector(".settings-range");
+            distanceInput.value = club.distance;
+            rangeEl.textContent = "AUTO RANGE  " + formatRange(club);
 
             function commit() {
-                var updated = sanitizeClub(
-                    { min: minInput.value, max: maxInput.value },
-                    club
-                );
+                var updated = sanitizeClub({ distance: distanceInput.value }, club);
                 clubs[index] = updated;
-                minInput.value = updated.min;
-                maxInput.value = updated.max;
+                distanceInput.value = updated.distance;
+                rangeEl.textContent = "AUTO RANGE  " + formatRange(updated);
                 saveClubs(clubs);
                 renderMain();
             }
 
-            minInput.addEventListener("change", commit);
-            maxInput.addEventListener("change", commit);
-            minInput.addEventListener("blur", commit);
+            distanceInput.addEventListener("change", commit);
+            distanceInput.addEventListener("blur", commit);
             els.settingsList.appendChild(card);
         });
     }

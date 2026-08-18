@@ -451,8 +451,16 @@ button, input {
 
 .settings-fields {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 10px;
+}
+
+.settings-range {
+    margin-top: 10px;
+    color: var(--grey);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
 }
 
 .settings-fields label {
