@@ -144,7 +144,7 @@ button, input {
 }
 
 .distance-kicker {
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 700;
     color: var(--grey);
 }
@@ -198,7 +198,7 @@ button, input {
 }
 
 .selected-kicker {
-    font-size: 11px;
+    font-size: 14px;
     font-weight: 700;
     color: var(--grey);
 }
@@ -236,7 +236,7 @@ button, input {
 }
 
 .adj-kicker {
-    font-size: 11px;
+    font-size: 14px;
     font-weight: 700;
     color: var(--grey);
 }
