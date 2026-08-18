@@ -58,6 +58,14 @@
         return clampClubValue(n);
     }
 
+    function isAnchorClub(id) {
+        return id === "driver" || id === "7i";
+    }
+
+    function canUseAuto(id) {
+        return !isAnchorClub(id);
+    }
+
     function typicalForSpec(spec, driver, iron7) {
         var pw = iron7 * 0.762;
         if (spec.id === "driver") {
@@ -75,20 +83,37 @@
         return Math.round(pw * spec.factor);
     }
 
-    function clubsFromAnchors(driver, iron7) {
+    function cloneManual(manual) {
+        var out = {};
+        if (!manual || typeof manual !== "object") {
+            return out;
+        }
+        CLUB_SPECS.forEach(function (spec) {
+            if (!canUseAuto(spec.id) || manual[spec.id] == null || manual[spec.id] === "") {
+                return;
+            }
+            var n = parseInt(manual[spec.id], 10);
+            if (!isNaN(n)) {
+                out[spec.id] = clampClubValue(n);
+            }
+        });
+        return out;
+    }
+
+    function clubsFromAnchors(driver, iron7, manual) {
         var d = parseAnchorValue(driver, DEFAULT_DRIVER);
         var i7 = parseAnchorValue(iron7, DEFAULT_IRON7);
+        var overrides = cloneManual(manual);
         return CLUB_SPECS.map(function (spec) {
+            var typical = Object.prototype.hasOwnProperty.call(overrides, spec.id)
+                ? overrides[spec.id]
+                : typicalForSpec(spec, d, i7);
             return clubFromDistance({
                 id: spec.id,
                 name: spec.name,
-                distance: typicalForSpec(spec, d, i7)
+                distance: typical
             });
         });
-    }
-
-    function isEditableClub(id) {
-        return id === "driver" || id === "7i";
     }
 
     function formatRange(club) {
@@ -213,11 +238,24 @@
         return { driver: driver, iron7: iron7 };
     }
 
-    var DEFAULT_CLUBS = clubsFromAnchors(DEFAULT_DRIVER, DEFAULT_IRON7);
+    function readSettings(saved) {
+        var anchors = readAnchors(saved);
+        var manual = {};
+        if (saved && !Array.isArray(saved) && typeof saved === "object") {
+            manual = cloneManual(saved.manual);
+        }
+        return {
+            driver: anchors.driver,
+            iron7: anchors.iron7,
+            manual: manual
+        };
+    }
+
+    var DEFAULT_CLUBS = clubsFromAnchors(DEFAULT_DRIVER, DEFAULT_IRON7, {});
 
     function mergeSavedClubs(saved) {
-        var anchors = readAnchors(saved);
-        return clubsFromAnchors(anchors.driver, anchors.iron7);
+        var settings = readSettings(saved);
+        return clubsFromAnchors(settings.driver, settings.iron7, settings.manual);
     }
 
     function readNativeJson() {
@@ -237,7 +275,7 @@
         } catch (e) {}
     }
 
-    function loadAnchorsFromStore() {
+    function loadSettingsFromStore() {
         var json = readNativeJson();
         if (!json) {
             try {
@@ -247,20 +285,29 @@
             }
         }
         if (!json) {
-            return { driver: DEFAULT_DRIVER, iron7: DEFAULT_IRON7 };
+            return {
+                driver: DEFAULT_DRIVER,
+                iron7: DEFAULT_IRON7,
+                manual: {}
+            };
         }
         try {
-            return readAnchors(JSON.parse(json));
+            return readSettings(JSON.parse(json));
         } catch (e) {
-            return { driver: DEFAULT_DRIVER, iron7: DEFAULT_IRON7 };
+            return {
+                driver: DEFAULT_DRIVER,
+                iron7: DEFAULT_IRON7,
+                manual: {}
+            };
         }
     }
 
-    function saveAnchors(anchors) {
+    function persistSettings(settings) {
         var json = JSON.stringify({
-            version: 4,
-            driver: anchors.driver,
-            iron7: anchors.iron7
+            version: 5,
+            driver: settings.driver,
+            iron7: settings.iron7,
+            manual: cloneManual(settings.manual)
         });
         try {
             window.localStorage.setItem(STORAGE_KEY, json);
@@ -281,14 +328,18 @@
             rangeFromDistance: rangeFromDistance,
             clubsFromAnchors: clubsFromAnchors,
             readAnchors: readAnchors,
+            readSettings: readSettings,
             mergeSavedClubs: mergeSavedClubs,
-            isEditableClub: isEditableClub
+            isAnchorClub: isAnchorClub,
+            canUseAuto: canUseAuto,
+            cloneManual: cloneManual
         };
         return;
     }
 
-    var anchors = loadAnchorsFromStore();
-    var clubs = clubsFromAnchors(anchors.driver, anchors.iron7);
+    var settings = loadSettingsFromStore();
+    var clubs = clubsFromAnchors(settings.driver, settings.iron7, settings.manual);
+    var settingsDraft = null;
     var distance = 96;
     var drawerOpen = false;
 
@@ -324,8 +375,12 @@
         return Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, n));
     }
 
-    function isAppInput(el) {
-        return !!(el && el.tagName === "INPUT");
+    function isTypedInput(el) {
+        return !!(
+            el &&
+            el.tagName === "INPUT" &&
+            (el.type === "number" || el.type === "text" || el.type === "")
+        );
     }
 
     function isDistanceEditing() {
@@ -334,7 +389,7 @@
 
     function hideDistanceKeyboard() {
         var active = document.activeElement;
-        if (!isAppInput(active)) {
+        if (!isTypedInput(active)) {
             return false;
         }
         active.blur();
@@ -406,6 +461,7 @@
     }
 
     function showMain() {
+        settingsDraft = null;
         els.screenSettings.classList.add("hidden");
         els.screenSettings.setAttribute("aria-hidden", "true");
         els.screenMain.classList.remove("hidden");
@@ -413,13 +469,50 @@
         renderMain();
     }
 
+    function copyDraft(source) {
+        return {
+            driver: source.driver,
+            iron7: source.iron7,
+            manual: cloneManual(source.manual)
+        };
+    }
+
     function readSettingsDraft() {
+        var fallback = settingsDraft || settings;
         var driverInput = els.settingsList.querySelector('input[data-anchor="driver"]');
         var iron7Input = els.settingsList.querySelector('input[data-anchor="iron7"]');
-        return {
-            driver: parseAnchorValue(driverInput && driverInput.value, anchors.driver),
-            iron7: parseAnchorValue(iron7Input && iron7Input.value, anchors.iron7)
-        };
+        var driver = parseAnchorValue(driverInput && driverInput.value, fallback.driver);
+        var iron7 = parseAnchorValue(iron7Input && iron7Input.value, fallback.iron7);
+        var manual = cloneManual(fallback.manual);
+
+        CLUB_SPECS.forEach(function (spec) {
+            if (!canUseAuto(spec.id)) {
+                return;
+            }
+            var card = els.settingsList.querySelector('[data-club-id="' + spec.id + '"]');
+            if (!card) {
+                return;
+            }
+            var toggle = card.querySelector("input[data-auto]");
+            var input = card.querySelector("input[data-manual]");
+            var autoOn = toggle ? toggle.checked : true;
+            if (autoOn) {
+                delete manual[spec.id];
+                return;
+            }
+            if (input) {
+                manual[spec.id] = parseAnchorValue(
+                    input.value,
+                    manual[spec.id] != null
+                        ? manual[spec.id]
+                        : typicalForSpec(spec, driver, iron7)
+                );
+            } else if (manual[spec.id] == null) {
+                manual[spec.id] = typicalForSpec(spec, driver, iron7);
+            }
+        });
+
+        return { driver: driver, iron7: iron7, manual: manual };
     }
 
     function refreshSettingsValues(previewClubs) {
@@ -433,7 +526,7 @@
             }
             var computed = card.querySelector(".settings-computed");
             var rangeEl = card.querySelector(".settings-range");
-            var input = card.querySelector("input[data-anchor]");
+            var input = card.querySelector("input[data-anchor], input[data-manual]");
             if (computed) {
                 computed.textContent = club.distance + " m";
             }
@@ -447,82 +540,127 @@
     }
 
     function previewSettingsDraft() {
-        var draft = readSettingsDraft();
-        refreshSettingsValues(clubsFromAnchors(draft.driver, draft.iron7));
+        settingsDraft = readSettingsDraft();
+        refreshSettingsValues(
+            clubsFromAnchors(settingsDraft.driver, settingsDraft.iron7, settingsDraft.manual)
+        );
+    }
+
+    function bindMetresInput(input, fallbackValue) {
+        function normalizeInput() {
+            var raw = String(input.value || "").replace(/\D/g, "");
+            if (raw !== input.value) {
+                input.value = raw;
+            }
+            if (raw === "") {
+                input.value = String(fallbackValue());
+            }
+        }
+
+        input.addEventListener("input", function () {
+            var raw = String(input.value || "").replace(/\D/g, "");
+            if (raw !== input.value) {
+                input.value = raw;
+            }
+            var live = parseInt(raw, 10);
+            if (!isNaN(live) && live >= 1 && live <= 400) {
+                previewSettingsDraft();
+            }
+        });
+        input.addEventListener("change", function () {
+            normalizeInput();
+            previewSettingsDraft();
+        });
+        input.addEventListener("blur", function () {
+            normalizeInput();
+            previewSettingsDraft();
+        });
+        input.addEventListener("keydown", function (event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                saveSettingsAndBack();
+            }
+        });
     }
 
     function saveSettingsAndBack() {
         var draft = readSettingsDraft();
         hideDistanceKeyboard();
-        anchors = draft;
-        clubs = clubsFromAnchors(anchors.driver, anchors.iron7);
-        saveAnchors(anchors);
+        settings = copyDraft(draft);
+        clubs = clubsFromAnchors(settings.driver, settings.iron7, settings.manual);
+        persistSettings(settings);
         showMain();
     }
 
     function renderSettings() {
+        var draft = settingsDraft || copyDraft(settings);
+        settingsDraft = copyDraft(draft);
+        var previewClubs = clubsFromAnchors(draft.driver, draft.iron7, draft.manual);
         els.settingsList.innerHTML = "";
-        clubs.forEach(function (club) {
-            var editable = isEditableClub(club.id);
+
+        previewClubs.forEach(function (club) {
+            var anchor = isAnchorClub(club.id);
+            var autoOn = anchor ? false : !Object.prototype.hasOwnProperty.call(draft.manual, club.id);
+            var editable = anchor || !autoOn;
             var card = document.createElement("div");
             card.className = "settings-card" + (editable ? " is-editable" : " is-computed");
             card.setAttribute("data-club-id", club.id);
+
+            var head =
+                '<div class="settings-card-head">' +
+                '<div class="settings-club"></div>' +
+                (anchor
+                    ? ""
+                    : '<label class="auto-toggle">' +
+                      '<input type="checkbox" data-auto="1">' +
+                      '<span class="auto-label">AUTO</span>' +
+                      '<span class="switch"></span>' +
+                      "</label>") +
+                "</div>";
+
             if (editable) {
                 card.innerHTML =
-                    '<div class="settings-club"></div>' +
+                    head +
                     '<div class="settings-fields">' +
-                    '<label>METRES<input type="number" inputmode="numeric" min="1" max="400" data-anchor=""></label>' +
+                    '<label>METRES<input type="number" inputmode="numeric" min="1" max="400"></label>' +
                     "</div>" +
                     '<div class="settings-range"></div>';
             } else {
                 card.innerHTML =
-                    '<div class="settings-kicker">CALCULATED</div>' +
-                    '<div class="settings-club"></div>' +
+                    head +
                     '<div class="settings-computed"></div>' +
                     '<div class="settings-range"></div>';
             }
+
             card.querySelector(".settings-club").textContent = club.name;
             card.querySelector(".settings-range").textContent = "RANGE  " + formatRange(club);
 
+            if (!anchor) {
+                var toggle = card.querySelector("input[data-auto]");
+                toggle.checked = autoOn;
+                toggle.setAttribute("aria-label", "Auto " + club.name);
+                toggle.addEventListener("change", function () {
+                    var next = readSettingsDraft();
+                    if (toggle.checked) {
+                        delete next.manual[club.id];
+                    } else if (next.manual[club.id] == null) {
+                        next.manual[club.id] = club.distance;
+                    }
+                    settingsDraft = next;
+                    renderSettings();
+                });
+            }
+
             if (editable) {
-                var input = card.querySelector("input[data-anchor]");
-                var anchorKey = club.id === "driver" ? "driver" : "iron7";
-                input.setAttribute("data-anchor", anchorKey);
-                input.value = String(club.distance);
-
-                function normalizeInput() {
-                    var raw = String(input.value || "").replace(/\D/g, "");
-                    if (raw !== input.value) {
-                        input.value = raw;
-                    }
-                    if (raw === "") {
-                        input.value = String(anchors[anchorKey]);
-                    }
+                var input = card.querySelector("input[type='number']");
+                if (anchor) {
+                    input.setAttribute("data-anchor", club.id === "driver" ? "driver" : "iron7");
+                } else {
+                    input.setAttribute("data-manual", club.id);
                 }
-
-                input.addEventListener("input", function () {
-                    var raw = String(input.value || "").replace(/\D/g, "");
-                    if (raw !== input.value) {
-                        input.value = raw;
-                    }
-                    var live = parseInt(raw, 10);
-                    if (!isNaN(live) && live >= 1 && live <= 400) {
-                        previewSettingsDraft();
-                    }
-                });
-                input.addEventListener("change", function () {
-                    normalizeInput();
-                    previewSettingsDraft();
-                });
-                input.addEventListener("blur", function () {
-                    normalizeInput();
-                    previewSettingsDraft();
-                });
-                input.addEventListener("keydown", function (event) {
-                    if (event.key === "Enter") {
-                        event.preventDefault();
-                        saveSettingsAndBack();
-                    }
+                input.value = String(club.distance);
+                bindMetresInput(input, function () {
+                    return club.distance;
                 });
             } else {
                 card.querySelector(".settings-computed").textContent = club.distance + " m";
@@ -534,6 +672,7 @@
 
     function showSettings() {
         hideDistanceKeyboard();
+        settingsDraft = copyDraft(settings);
         els.screenMain.classList.add("hidden");
         els.screenSettings.classList.remove("hidden");
         els.screenSettings.setAttribute("aria-hidden", "false");
@@ -613,6 +752,6 @@
         setDistance(event.target.value, true);
     });
 
-    saveAnchors(anchors);
+    persistSettings(settings);
     renderMain();
 }());

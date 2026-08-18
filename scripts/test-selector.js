@@ -7,7 +7,9 @@ const {
     clubsFromAnchors,
     readAnchors,
     mergeSavedClubs,
-    isEditableClub,
+    isAnchorClub,
+    canUseAuto,
+    readSettings,
     RANGE_PAD
 } = require("../app/src/main/assets/js/app.js");
 
@@ -62,8 +64,9 @@ for (const test of rangeCases) {
 }
 
 assert(RANGE_PAD === 5, "RANGE_PAD should be 5");
-assert(isEditableClub("driver") && isEditableClub("7i"), "only D and I7 are editable");
-assert(!isEditableClub("pw") && !isEditableClub("9i"), "derived clubs are not editable");
+assert(isAnchorClub("driver") && isAnchorClub("7i"), "D and I7 are anchors");
+assert(!isAnchorClub("pw") && !isAnchorClub("9i"), "derived clubs are not anchors");
+assert(canUseAuto("pw") && canUseAuto("3w") && !canUseAuto("driver") && !canUseAuto("7i"), "auto only on derived clubs");
 
 const defaults = clubMap(DEFAULT_CLUBS);
 const expectedDefaults = {
@@ -116,7 +119,18 @@ assert(v3saved.driver === 190 && v3saved.iron7 === 118, "read v3 anchors", v3sav
 
 const merged = mergeSavedClubs({ driver: 200, iron7: 122 });
 assert(merged.find((c) => c.id === "pw").distance === 93, "merge computes PW", merged);
-console.log("OK migrate and v3 storage");
+
+const overridden = clubMap(clubsFromAnchors(200, 122, { pw: 100, "3w": 190 }));
+assert(overridden.pw.distance === 100, "manual PW override", overridden.pw);
+assert(overridden["3w"].distance === 190, "manual 3W override", overridden["3w"]);
+assert(overridden["52"].distance === Math.round(122 * 0.762 * 0.875), "auto 52W still from I7", overridden["52"]);
+assert(overridden["3h"].distance === Math.round(200 * 0.8), "auto 3H still from D", overridden["3h"]);
+
+const v5saved = readSettings({ version: 5, driver: 190, iron7: 118, manual: { pw: 88 } });
+assert(v5saved.driver === 190 && v5saved.iron7 === 118 && v5saved.manual.pw === 88, "read v5 manual", v5saved);
+const v5clubs = clubMap(mergeSavedClubs(v5saved));
+assert(v5clubs.pw.distance === 88, "saved manual PW used", v5clubs.pw);
+console.log("OK migrate, v3 storage and manual Auto overrides");
 
 const cases = [
     { d: 96, name: "PW", prev: "52°", next: "9 IRON" },
