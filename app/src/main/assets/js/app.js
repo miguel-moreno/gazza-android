@@ -7,22 +7,24 @@
     var CLUB_VALUE_MIN = 1;
     var CLUB_VALUE_MAX = 400;
     var STORAGE_KEY = "gazza_clubs_v1";
+    var DEFAULT_DRIVER = 200;
+    var DEFAULT_IRON7 = 122;
 
-    var DEFAULT_CLUBS = [
-        { id: "driver", name: "DRIVER", distance: 200 },
-        { id: "3w", name: "3W", distance: 185 },
-        { id: "3h", name: "3H 19°", distance: 175 },
-        { id: "4h", name: "4H 22°", distance: 160 },
-        { id: "5i", name: "5 IRON", distance: 148 },
-        { id: "6i", name: "6 IRON", distance: 140 },
-        { id: "7i", name: "7 IRON", distance: 122 },
-        { id: "8i", name: "8 IRON", distance: 112 },
-        { id: "9i", name: "9 IRON", distance: 105 },
-        { id: "pw", name: "PW", distance: 100 },
-        { id: "52", name: "52°", distance: 95 },
-        { id: "56", name: "56°", distance: 85 },
-        { id: "60", name: "60°", distance: 70 }
-    ].map(clubFromDistance);
+    var CLUB_SPECS = [
+        { id: "driver", name: "DRIVER", source: "driver" },
+        { id: "3w", name: "3W", source: "driver", factor: 0.886 },
+        { id: "3h", name: "3H 19°", source: "driver", factor: 0.8 },
+        { id: "4h", name: "4H 22°", source: "driver", factor: 0.743 },
+        { id: "5i", name: "5 IRON", source: "iron7", factor: 1.095 },
+        { id: "6i", name: "6 IRON", source: "iron7", factor: 1.048 },
+        { id: "7i", name: "7 IRON", source: "iron7" },
+        { id: "8i", name: "8 IRON", source: "iron7", factor: 0.905 },
+        { id: "9i", name: "9 IRON", source: "iron7", factor: 0.838 },
+        { id: "pw", name: "PW", source: "iron7", factor: 0.762 },
+        { id: "52", name: "52°", source: "pw", factor: 0.875 },
+        { id: "56", name: "56°", source: "pw", factor: 0.725 },
+        { id: "60", name: "60°", source: "pw", factor: 0.6 }
+    ];
 
     function clampClubValue(value) {
         return Math.max(CLUB_VALUE_MIN, Math.min(CLUB_VALUE_MAX, value));
@@ -48,10 +50,45 @@
         };
     }
 
-    function cloneClubs(list) {
-        return list.map(function (club) {
-            return clubFromDistance(club);
+    function parseAnchorValue(value, fallback) {
+        var n = parseInt(value, 10);
+        if (isNaN(n)) {
+            return fallback;
+        }
+        return clampClubValue(n);
+    }
+
+    function typicalForSpec(spec, driver, iron7) {
+        var pw = iron7 * 0.762;
+        if (spec.id === "driver") {
+            return driver;
+        }
+        if (spec.id === "7i") {
+            return iron7;
+        }
+        if (spec.source === "driver") {
+            return Math.round(driver * spec.factor);
+        }
+        if (spec.source === "iron7") {
+            return Math.round(iron7 * spec.factor);
+        }
+        return Math.round(pw * spec.factor);
+    }
+
+    function clubsFromAnchors(driver, iron7) {
+        var d = parseAnchorValue(driver, DEFAULT_DRIVER);
+        var i7 = parseAnchorValue(iron7, DEFAULT_IRON7);
+        return CLUB_SPECS.map(function (spec) {
+            return clubFromDistance({
+                id: spec.id,
+                name: spec.name,
+                distance: typicalForSpec(spec, d, i7)
+            });
         });
+    }
+
+    function isEditableClub(id) {
+        return id === "driver" || id === "7i";
     }
 
     function formatRange(club) {
@@ -142,26 +179,45 @@
         return fallbackDistance;
     }
 
-    function sanitizeClub(club, fallback) {
-        return clubFromDistance({
-            id: fallback.id,
-            name: fallback.name,
-            distance: readTypicalDistance(club, fallback.distance)
-        });
-    }
-
-    function mergeSavedClubs(saved) {
+    function readAnchors(saved) {
+        var driver = DEFAULT_DRIVER;
+        var iron7 = DEFAULT_IRON7;
         var byId = {};
+
+        if (saved && !Array.isArray(saved) && typeof saved === "object") {
+            driver = parseAnchorValue(saved.driver, driver);
+            iron7 = parseAnchorValue(saved.iron7, iron7);
+            return { driver: driver, iron7: iron7 };
+        }
+
         if (Array.isArray(saved)) {
             saved.forEach(function (club) {
                 if (club && club.id) {
                     byId[club.id] = club;
                 }
             });
+            if (byId.driver) {
+                driver = parseAnchorValue(
+                    readTypicalDistance(byId.driver, driver),
+                    driver
+                );
+            }
+            if (byId["7i"]) {
+                iron7 = parseAnchorValue(
+                    readTypicalDistance(byId["7i"], iron7),
+                    iron7
+                );
+            }
         }
-        return DEFAULT_CLUBS.map(function (fallback) {
-            return sanitizeClub(byId[fallback.id] || fallback, fallback);
-        });
+
+        return { driver: driver, iron7: iron7 };
+    }
+
+    var DEFAULT_CLUBS = clubsFromAnchors(DEFAULT_DRIVER, DEFAULT_IRON7);
+
+    function mergeSavedClubs(saved) {
+        var anchors = readAnchors(saved);
+        return clubsFromAnchors(anchors.driver, anchors.iron7);
     }
 
     function readNativeJson() {
@@ -181,7 +237,7 @@
         } catch (e) {}
     }
 
-    function loadClubs() {
+    function loadAnchorsFromStore() {
         var json = readNativeJson();
         if (!json) {
             try {
@@ -191,17 +247,21 @@
             }
         }
         if (!json) {
-            return cloneClubs(DEFAULT_CLUBS);
+            return { driver: DEFAULT_DRIVER, iron7: DEFAULT_IRON7 };
         }
         try {
-            return mergeSavedClubs(JSON.parse(json));
+            return readAnchors(JSON.parse(json));
         } catch (e) {
-            return cloneClubs(DEFAULT_CLUBS);
+            return { driver: DEFAULT_DRIVER, iron7: DEFAULT_IRON7 };
         }
     }
 
-    function saveClubs(clubs) {
-        var json = JSON.stringify(clubs);
+    function saveAnchors(anchors) {
+        var json = JSON.stringify({
+            version: 3,
+            driver: anchors.driver,
+            iron7: anchors.iron7
+        });
         try {
             window.localStorage.setItem(STORAGE_KEY, json);
         } catch (e) {}
@@ -211,18 +271,24 @@
     if (typeof module !== "undefined" && module.exports) {
         module.exports = {
             DEFAULT_CLUBS: DEFAULT_CLUBS,
+            DEFAULT_DRIVER: DEFAULT_DRIVER,
+            DEFAULT_IRON7: DEFAULT_IRON7,
             RANGE_PAD: RANGE_PAD,
+            CLUB_SPECS: CLUB_SPECS,
             selectClubIndex: selectClubIndex,
             adjacentClubs: adjacentClubs,
             formatRange: formatRange,
             rangeFromDistance: rangeFromDistance,
+            clubsFromAnchors: clubsFromAnchors,
+            readAnchors: readAnchors,
             mergeSavedClubs: mergeSavedClubs,
-            sanitizeClub: sanitizeClub
+            isEditableClub: isEditableClub
         };
         return;
     }
 
-    var clubs = loadClubs();
+    var anchors = loadAnchorsFromStore();
+    var clubs = clubsFromAnchors(anchors.driver, anchors.iron7);
     var distance = 96;
     var drawerOpen = false;
 
@@ -257,16 +323,23 @@
         return Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, n));
     }
 
+    function isAppInput(el) {
+        return !!(el && el.tagName === "INPUT");
+    }
+
     function isDistanceEditing() {
         return document.activeElement === els.distanceInput;
     }
 
     function hideDistanceKeyboard() {
-        if (!isDistanceEditing()) {
+        var active = document.activeElement;
+        if (!isAppInput(active)) {
             return false;
         }
-        els.distanceInput.blur();
-        commitDistanceInput();
+        active.blur();
+        if (active === els.distanceInput) {
+            commitDistanceInput();
+        }
         return true;
     }
 
@@ -339,34 +412,105 @@
         renderMain();
     }
 
+    function applyAnchors(nextDriver, nextIron7) {
+        anchors = {
+            driver: parseAnchorValue(nextDriver, anchors.driver),
+            iron7: parseAnchorValue(nextIron7, anchors.iron7)
+        };
+        clubs = clubsFromAnchors(anchors.driver, anchors.iron7);
+        saveAnchors(anchors);
+        renderMain();
+        refreshSettingsValues();
+    }
+
+    function refreshSettingsValues() {
+        if (!els.settingsList) {
+            return;
+        }
+        clubs.forEach(function (club) {
+            var card = els.settingsList.querySelector('[data-club-id="' + club.id + '"]');
+            if (!card) {
+                return;
+            }
+            var computed = card.querySelector(".settings-computed");
+            var rangeEl = card.querySelector(".settings-range");
+            var input = card.querySelector("input[data-anchor]");
+            if (computed) {
+                computed.textContent = club.distance + " m";
+            }
+            if (rangeEl) {
+                rangeEl.textContent = "RANGE  " + formatRange(club);
+            }
+            if (input && document.activeElement !== input) {
+                input.value = String(club.distance);
+            }
+        });
+    }
+
     function renderSettings() {
         els.settingsList.innerHTML = "";
-        clubs.forEach(function (club, index) {
+        clubs.forEach(function (club) {
+            var editable = isEditableClub(club.id);
             var card = document.createElement("div");
-            card.className = "settings-card";
-            card.innerHTML =
-                '<div class="settings-club"></div>' +
-                '<div class="settings-fields">' +
-                '<label>METRES<input type="number" inputmode="numeric" min="1" max="400" data-field="distance"></label>' +
-                "</div>" +
-                '<div class="settings-range"></div>';
+            card.className = "settings-card" + (editable ? " is-editable" : " is-computed");
+            card.setAttribute("data-club-id", club.id);
+            if (editable) {
+                card.innerHTML =
+                    '<div class="settings-club"></div>' +
+                    '<div class="settings-fields">' +
+                    '<label>METRES<input type="number" inputmode="numeric" min="1" max="400" data-anchor=""></label>' +
+                    "</div>" +
+                    '<div class="settings-range"></div>';
+            } else {
+                card.innerHTML =
+                    '<div class="settings-kicker">CALCULATED</div>' +
+                    '<div class="settings-club"></div>' +
+                    '<div class="settings-computed"></div>' +
+                    '<div class="settings-range"></div>';
+            }
             card.querySelector(".settings-club").textContent = club.name;
-            var distanceInput = card.querySelector('input[data-field="distance"]');
-            var rangeEl = card.querySelector(".settings-range");
-            distanceInput.value = club.distance;
-            rangeEl.textContent = "AUTO RANGE  " + formatRange(club);
+            card.querySelector(".settings-range").textContent = "RANGE  " + formatRange(club);
 
-            function commit() {
-                var updated = sanitizeClub({ distance: distanceInput.value }, club);
-                clubs[index] = updated;
-                distanceInput.value = updated.distance;
-                rangeEl.textContent = "AUTO RANGE  " + formatRange(updated);
-                saveClubs(clubs);
-                renderMain();
+            if (editable) {
+                var input = card.querySelector("input[data-anchor]");
+                var anchorKey = club.id === "driver" ? "driver" : "iron7";
+                input.setAttribute("data-anchor", anchorKey);
+                input.value = String(club.distance);
+
+                function commitAnchor() {
+                    var raw = String(input.value || "").replace(/\D/g, "");
+                    if (raw === "") {
+                        input.value = String(anchors[anchorKey]);
+                        return;
+                    }
+                    if (anchorKey === "driver") {
+                        applyAnchors(raw, anchors.iron7);
+                    } else {
+                        applyAnchors(anchors.driver, raw);
+                    }
+                    input.value = String(anchors[anchorKey]);
+                }
+
+                input.addEventListener("input", function () {
+                    var raw = String(input.value || "").replace(/\D/g, "");
+                    if (raw !== input.value) {
+                        input.value = raw;
+                    }
+                    var live = parseInt(raw, 10);
+                    if (!isNaN(live) && live >= 40 && live <= 400) {
+                        if (anchorKey === "driver") {
+                            applyAnchors(live, anchors.iron7);
+                        } else {
+                            applyAnchors(anchors.driver, live);
+                        }
+                    }
+                });
+                input.addEventListener("change", commitAnchor);
+                input.addEventListener("blur", commitAnchor);
+            } else {
+                card.querySelector(".settings-computed").textContent = club.distance + " m";
             }
 
-            distanceInput.addEventListener("change", commit);
-            distanceInput.addEventListener("blur", commit);
             els.settingsList.appendChild(card);
         });
     }
@@ -451,6 +595,6 @@
         setDistance(event.target.value, true);
     });
 
-    saveClubs(clubs);
+    saveAnchors(anchors);
     renderMain();
 }());

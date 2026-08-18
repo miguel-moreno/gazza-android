@@ -443,10 +443,37 @@ button, input {
     padding: 14px;
 }
 
+.settings-card.is-editable {
+    border-color: var(--blue);
+    box-shadow: 0 0 14px rgba(0, 166, 255, 0.18);
+}
+
+.settings-kicker {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--grey-dim);
+    margin-bottom: 6px;
+}
+
 .settings-club {
     font-size: 18px;
     font-weight: 800;
     margin-bottom: 12px;
+}
+
+.settings-computed {
+    margin: 0 0 8px;
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--white);
+    letter-spacing: -0.02em;
+}
+
+.settings-card.is-computed .settings-club {
+    margin-bottom: 4px;
+    color: var(--grey);
 }
 
 .settings-fields {

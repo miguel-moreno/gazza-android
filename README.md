@@ -1,15 +1,15 @@
-# Gazza Club Caddie — V2.0
+# Gazza Club Caddie — V3.0
 
 Aplicación Android privada y 100% offline: introduces una distancia y la app recomienda el palo.
 
 **Nombre visible:** Gazza Club Caddie  
 **Package:** `com.gazza.clubcaddie`  
-**Versión:** 2.0.0  
-**APK:** `apk/GazzaClubCaddie-2.0.0.apk`
+**Versión:** 3.0.0  
+**APK:** `apk/GazzaClubCaddie-3.0.0.apk`
 
 ## Instalar en el teléfono
 
-1. Copia `apk/GazzaClubCaddie-2.0.0.apk` al teléfono.
+1. Copia `apk/GazzaClubCaddie-3.0.0.apk` al teléfono.
 2. Abre el archivo e instálalo (permite “orígenes desconocidos” si Android lo pide).
 3. No necesita Internet, cuenta ni GPS.
 
@@ -18,7 +18,7 @@ Aplicación Android privada y 100% offline: introduces una distancia y la app re
 - Mueve el slider (40–220 m) o toca el número grande para escribir la distancia.
 - El palo central es el seleccionado.
 - **PREV.** muestra el palo de distancia inferior. **NEXT** muestra el palo de distancia superior.
-- Menú ☰ → **Settings** para indicar un único valor en metros por palo. El rango min/max se calcula automáticamente (±5 m) y se guarda en el teléfono.
+- Menú ☰ → **Settings**: solo se introducen **Driver (D)** y **7 Iron (I7)**. El resto de palos se calcula con las fórmulas y el rango min/max es ±5 m.
 
 ## Compilar
 
